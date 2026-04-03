@@ -21,6 +21,13 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     info "Removing applet from ${APPLET_DEST} …"
     rm -rf "${APPLET_DEST}"
     ok "Applet removed."
+
+    DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
+    if [[ -f "${DESKTOP_DEST}" ]]; then
+        rm -f "${DESKTOP_DEST}"
+        ok "Desktop launcher removed."
+    fi
+
     info "You may also want to run:"
     echo "   gsettings set org.cinnamon next-applet-id 0"
     echo "   (Cinnamon will remove it from the panel on next login)"
@@ -55,6 +62,24 @@ info "Installing applet to ${APPLET_DEST} …"
 mkdir -p "${APPLET_DEST}"
 cp -r "${APPLET_SRC}/." "${APPLET_DEST}/"
 ok "Files copied."
+
+# ── Desktop launcher ──────────────────────────────────────────────────────────
+
+DESKTOP_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mint-power-enhancer.desktop"
+DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
+
+if [[ -f "${DESKTOP_SRC}" ]]; then
+    cp "${DESKTOP_SRC}" "${DESKTOP_DEST}"
+    chmod +x "${DESKTOP_DEST}"
+    # Mark as trusted so Cinnamon/Nemo allows double-click execution
+    if command -v gio &>/dev/null; then
+        gio set "${DESKTOP_DEST}" metadata::trusted true 2>/dev/null || \
+            warn "Could not mark desktop launcher as trusted. You may need to right-click it and choose 'Allow Launching'."
+    fi
+    ok "Desktop launcher created at ${DESKTOP_DEST}."
+else
+    warn "mint-power-enhancer.desktop not found in repository – skipping desktop launcher."
+fi
 
 # ── Enable via gsettings ──────────────────────────────────────────────────────
 

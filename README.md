@@ -9,9 +9,13 @@ A [Cinnamon](https://github.com/linuxmint/Cinnamon) panel applet for Linux Mint 
 | **Auto Battery Saver** | Automatically switches to *Battery Saver* mode when charge drops below a configurable percentage |
 | **Manual Battery Saver** | One-click toggle in the panel menu to force battery-saver mode on at any time |
 | **Performance Mode on AC** | Automatically switches to *Performance* mode whenever the laptop is plugged into AC power |
+| **Show Battery % toggle** | Quick on/off switch in the panel menu to show or hide the battery percentage label |
+| **Green charging indicator** | Battery icon and percentage label turn green while the battery is charging or fully charged |
+| **Instant AC detection** | Reacts within ~100 ms when you plug or unplug the power adapter |
 | **Live panel indicator** | Shows current battery percentage and a context-aware icon in the taskbar |
 | **Desktop notifications** | Optional pop-up alerts when the power mode changes automatically |
 | **Persistent settings** | All settings survive reboots — stored by Cinnamon's built-in settings system |
+| **Desktop launcher** | A `.desktop` shortcut is placed on your Desktop during installation for one-double-click access to settings |
 
 ---
 
@@ -73,8 +77,9 @@ bash install.sh
 The script will:
 
 1. Copy the applet files to `~/.local/share/cinnamon/applets/mint-power-enhancer@applet/`
-2. Add the applet to your Cinnamon panel via `gsettings`
-3. Reload Cinnamon automatically
+2. Place a **desktop launcher** (`mint-power-enhancer.desktop`) on your Desktop for one-double-click access to settings
+3. Add the applet to your Cinnamon panel via `gsettings`
+4. Reload Cinnamon automatically
 
 ### Step 4 — Add the applet to the panel (if not added automatically)
 
@@ -117,7 +122,7 @@ The icon changes to reflect the current state:
 | Charging (AC connected) | Charging variant of the above |
 | No battery detected | Missing-battery icon |
 
-The percentage is always shown as a label next to the icon.
+The percentage label is shown or hidden based on the **Show Battery %** toggle in the panel menu (default: on).
 
 ### Panel menu
 
@@ -130,6 +135,7 @@ Mode: Balanced
 ──────────────────────────
 [●] Battery Saver
 [ ] Performance Mode (AC only)
+[●] Show Battery %
 ──────────────────────────
 Auto-saver threshold: 20%
 ──────────────────────────
@@ -138,6 +144,7 @@ Auto-saver threshold: 20%
 
 - **Battery Saver** toggle — forces battery-saver mode on/off regardless of charge level
 - **Performance Mode** toggle — enables performance mode; greyed out when on battery
+- **Show Battery %** toggle — instantly shows or hides the percentage label in the panel
 - **Open Settings** — opens the full settings dialog
 
 ---

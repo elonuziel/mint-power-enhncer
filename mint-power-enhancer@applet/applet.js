@@ -31,7 +31,7 @@ const UUID = "mint-power-enhancer@applet";
 const CHECK_INTERVAL = 10;
 
 // Debounce rapid file-change events from power-supply sysfs files
-const FAST_REFRESH_DELAY_MS = 250;
+const FAST_REFRESH_DELAY_MS = 100;
 
 // ── Sysfs helpers ────────────────────────────────────────────────────────────
 
@@ -279,6 +279,16 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         });
         this.menu.addMenuItem(this._togglePerformance);
 
+        // --- Show battery percentage toggle ---
+        this._toggleBatteryPercentage = new PopupMenu.PopupSwitchMenuItem(
+            "Show Battery %", !!this.showBatteryPercentage);
+        this._toggleBatteryPercentage.connect("toggled", (_item, state) => {
+            this.showBatteryPercentage = state;
+            this._settings.setValue("show-battery-percentage", state);
+            this._updatePanel();
+        });
+        this.menu.addMenuItem(this._toggleBatteryPercentage);
+
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // --- Threshold info ---
@@ -293,11 +303,11 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         openSettings.connect("activate", () => {
             try {
                 if (GLib.find_program_in_path("xlet-settings")) {
-                    Util.spawnCommandLine(
+                    GLib.spawn_command_line_async(
                         "xlet-settings applet " + UUID + " -i " + this.instanceId
                     );
                 } else {
-                    Util.spawnCommandLine("cinnamon-settings applets");
+                    GLib.spawn_command_line_async("cinnamon-settings applets");
                 }
             } catch (_e) {
                 Main.notify("Mint Power Enhancer",
@@ -336,6 +346,9 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         // Grey out performance toggle when not on AC
         this._togglePerformance.actor.reactive = this._onAC;
         this._togglePerformance.actor.opacity = this._onAC ? 255 : 128;
+
+        // Reflect battery percentage toggle
+        this._toggleBatteryPercentage.setToggleState(!!this.showBatteryPercentage);
     }
 
     // ── Core polling loop ─────────────────────────────────────────────────
@@ -439,7 +452,7 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
 
         this.set_applet_label(this.showBatteryPercentage ? (pct + "%") : "");
 
-        if (this._batteryState === "Charging") {
+        if (this._batteryState === "Charging" || (this._onAC && this._batteryState === "Full")) {
             this.actor.add_style_class_name("mpe-charging");
         } else {
             this.actor.remove_style_class_name("mpe-charging");
@@ -491,7 +504,10 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
                 if (!file.query_exists(null)) continue;
 
                 let monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
-                monitor.set_rate_limit(500);
+                // Rate limit on the monitor prevents duplicate events from the
+                // kernel; the FAST_REFRESH_DELAY_MS debounce then coalesces any
+                // remaining rapid-fire events into a single _tick() call.
+                monitor.set_rate_limit(250);
                 monitor.connect("changed", () => {
                     this._scheduleFastRefresh();
                 });
