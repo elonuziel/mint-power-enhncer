@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Mint Power Enhancer Settings
+Comment=Configure battery saver and performance mode for the Mint Power Enhancer applet
+Exec=bash -c "xlet-settings applet mint-power-enhancer@applet -i 0 2>/dev/null || cinnamon-settings applets"
+Icon=battery
+Terminal=false
+Categories=Settings;HardwareSettings;
+Keywords=battery;power;saver;performance;

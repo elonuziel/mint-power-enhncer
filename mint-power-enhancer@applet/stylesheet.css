@@ -14,3 +14,14 @@
 .popup-menu-item:insensitive {
     opacity: 0.5;
 }
+
+/* Make the symbolic battery icon green while charging / fully charged on AC */
+.mpe-charging .applet-icon,
+.mpe-charging .system-status-icon {
+    color: #41a443;
+}
+
+/* Tint the percentage label green while charging */
+.mpe-charging .applet-label {
+    color: #41a443;
+}

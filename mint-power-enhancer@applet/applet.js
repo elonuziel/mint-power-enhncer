@@ -28,7 +28,10 @@ const Util = imports.misc.util;
 const UUID = "mint-power-enhancer@applet";
 
 // How often (in seconds) the applet re-checks battery state
-const CHECK_INTERVAL = 30;
+const CHECK_INTERVAL = 10;
+
+// Debounce rapid file-change events from power-supply sysfs files
+const FAST_REFRESH_DELAY_MS = 100;
 
 // ── Sysfs helpers ────────────────────────────────────────────────────────────
 
@@ -154,10 +157,13 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
 
         // Runtime state
         this._batteryLevel = -1;
+        this._batteryState = "Unknown";
         this._onAC = false;
         this._currentProfile = "balanced";
         this._autoSaverActive = false;
         this._timerId = null;
+        this._pendingRefreshId = null;
+        this._fileMonitors = [];
 
         // Discover power-supply sysfs paths once at startup
         this._batteryPath = findPowerSupplyPath("Battery");
@@ -174,6 +180,9 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
 
         // Build popup menu
         this._buildMenu();
+
+        // React quickly to AC/battery status file changes
+        this._setupPowerFileMonitors();
 
         // First status check, then start repeating timer
         this._tick();
@@ -206,6 +215,10 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
 
         this._settings.bindProperty(BD,
             "performance-mode-on-ac", "performanceModeOnAc",
+            this._onSettingChanged.bind(this), null);
+
+        this._settings.bindProperty(BD,
+            "show-battery-percentage", "showBatteryPercentage",
             this._onSettingChanged.bind(this), null);
     }
 
@@ -266,6 +279,16 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         });
         this.menu.addMenuItem(this._togglePerformance);
 
+        // --- Show battery percentage toggle ---
+        this._toggleBatteryPercentage = new PopupMenu.PopupSwitchMenuItem(
+            "Show Battery %", !!this.showBatteryPercentage);
+        this._toggleBatteryPercentage.connect("toggled", (_item, state) => {
+            this.showBatteryPercentage = state;
+            this._settings.setValue("show-battery-percentage", state);
+            this._updatePanel();
+        });
+        this.menu.addMenuItem(this._toggleBatteryPercentage);
+
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // --- Threshold info ---
@@ -278,8 +301,18 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         // --- Open settings ---
         let openSettings = new PopupMenu.PopupMenuItem("⚙  Open Settings");
         openSettings.connect("activate", () => {
-            Util.spawnCommandLine(
-                "cinnamon-settings applets " + UUID + " " + this.instanceId);
+            try {
+                if (GLib.find_program_in_path("xlet-settings")) {
+                    GLib.spawn_command_line_async(
+                        "xlet-settings applet " + UUID + " -i " + this.instanceId
+                    );
+                } else {
+                    GLib.spawn_command_line_async("cinnamon-settings applets");
+                }
+            } catch (_e) {
+                Main.notify("Mint Power Enhancer",
+                    "Could not open applet settings.");
+            }
         });
         this.menu.addMenuItem(openSettings);
     }
@@ -288,7 +321,7 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         if (!this._itemBattery) return;
 
         let batteryText = this._batteryLevel >= 0
-            ? "Battery: " + this._batteryLevel + "% (" + this._batteryStatus() + ")"
+            ? "Battery: " + this._batteryLevel + "% (" + this._batteryState + ")"
             : "Battery: not detected";
         this._itemBattery.label.text = batteryText;
 
@@ -313,13 +346,17 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         // Grey out performance toggle when not on AC
         this._togglePerformance.actor.reactive = this._onAC;
         this._togglePerformance.actor.opacity = this._onAC ? 255 : 128;
+
+        // Reflect battery percentage toggle
+        this._toggleBatteryPercentage.setToggleState(!!this.showBatteryPercentage);
     }
 
     // ── Core polling loop ─────────────────────────────────────────────────
 
     _tick() {
         this._batteryLevel = this._readBatteryLevel();
-        this._onAC = this._readOnAC();
+        this._batteryState = this._batteryStatus();
+        this._onAC = this._readOnAC(this._batteryState);
 
         this._applyPolicy();
         this._updatePanel();
@@ -385,6 +422,7 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
             this.set_applet_icon_symbolic_name("battery-missing-symbolic");
             this.set_applet_label("⚡");
             this.set_applet_tooltip("Mint Power Enhancer – no battery detected");
+            this.actor.remove_style_class_name("mpe-charging");
             return;
         }
 
@@ -412,7 +450,13 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
             this.set_applet_icon_symbolic_name("battery");
         }
 
-        this.set_applet_label(pct + "%");
+        this.set_applet_label(this.showBatteryPercentage ? (pct + "%") : "");
+
+        if (this._batteryState === "Charging" || (this._onAC && this._batteryState === "Full")) {
+            this.actor.add_style_class_name("mpe-charging");
+        } else {
+            this.actor.remove_style_class_name("mpe-charging");
+        }
 
         let acStr   = this._onAC ? "AC" : "battery";
         let modeStr = _profileLabel(this._currentProfile);
@@ -433,15 +477,53 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
         return readSysfs(this._batteryPath + "status") || "Unknown";
     }
 
-    _readOnAC() {
+    _readOnAC(status) {
         // Primary: check AC adapter's `online` file
         if (this._acPath) {
             let online = readSysfs(this._acPath + "online");
             if (online !== null) return online === "1";
         }
         // Fallback: battery status tells us if it's charging
-        let status = this._batteryStatus();
         return status === "Charging" || status === "Full";
+    }
+
+    _setupPowerFileMonitors() {
+        let paths = [];
+
+        if (this._acPath) {
+            paths.push(this._acPath + "online");
+        }
+        if (this._batteryPath) {
+            paths.push(this._batteryPath + "capacity");
+            paths.push(this._batteryPath + "status");
+        }
+
+        for (let path of paths) {
+            try {
+                let file = Gio.File.new_for_path(path);
+                if (!file.query_exists(null)) continue;
+
+                let monitor = file.monitor_file(Gio.FileMonitorFlags.NONE, null);
+                // Rate limit on the monitor prevents duplicate events from the
+                // kernel; the FAST_REFRESH_DELAY_MS debounce then coalesces any
+                // remaining rapid-fire events into a single _tick() call.
+                monitor.set_rate_limit(250);
+                monitor.connect("changed", () => {
+                    this._scheduleFastRefresh();
+                });
+                this._fileMonitors.push(monitor);
+            } catch (_e) {}
+        }
+    }
+
+    _scheduleFastRefresh() {
+        if (this._pendingRefreshId !== null) return;
+
+        this._pendingRefreshId = Mainloop.timeout_add(FAST_REFRESH_DELAY_MS, () => {
+            this._pendingRefreshId = null;
+            this._tick();
+            return GLib.SOURCE_REMOVE;
+        });
     }
 
     // ── Applet lifecycle ──────────────────────────────────────────────────
@@ -455,6 +537,19 @@ class MintPowerEnhancerApplet extends Applet.TextIconApplet {
             Mainloop.source_remove(this._timerId);
             this._timerId = null;
         }
+
+        if (this._pendingRefreshId !== null) {
+            Mainloop.source_remove(this._pendingRefreshId);
+            this._pendingRefreshId = null;
+        }
+
+        for (let monitor of this._fileMonitors) {
+            try {
+                monitor.cancel();
+            } catch (_e) {}
+        }
+        this._fileMonitors = [];
+
         this._settings.finalize();
     }
 }
