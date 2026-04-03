@@ -18,6 +18,7 @@
             "keys": [
                 "auto-battery-saver-enabled",
                 "battery-saver-threshold",
+                "show-battery-percentage",
                 "show-notifications"
             ]
         },
@@ -54,6 +55,11 @@
         "type": "checkbox",
         "default": true,
         "description": "Show notifications when power mode changes automatically"
+    },
+    "show-battery-percentage": {
+        "type": "checkbox",
+        "default": true,
+        "description": "Show battery percentage next to the panel icon"
     },
     "manual-battery-saver": {
         "type": "checkbox",
