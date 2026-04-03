@@ -1,18 +1,13 @@
 #!/usr/bin/env bash
 # install.sh – Installer for the Mint Power Enhancer Cinnamon applet
-# Usage: bash install.sh [--uninstall]
+# Usage: bash mint-power-enhancer@applet/install.sh [--uninstall]
 
 set -euo pipefail
 
 APPLET_UUID="mint-power-enhancer@applet"
-APPLET_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/${APPLET_UUID}"
+APPLET_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APPLET_SRC="${APPLET_DIR}"
 APPLET_DEST="${HOME}/.local/share/cinnamon/applets/${APPLET_UUID}"
-APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-APP_SCRIPT_SRC="${APP_DIR}/mint-power-enhancer-app.py"
-APP_SCRIPT_DEST="${HOME}/.local/bin/mint-power-enhancer-app"
-DESKTOP_SRC="${APP_DIR}/mint-power-enhancer.desktop"
-DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
-APPLICATIONS_DEST="${HOME}/.local/share/applications/mint-power-enhancer.desktop"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -28,21 +23,6 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     rm -rf "${APPLET_DEST}"
     ok "Applet removed."
 
-    if [[ -f "${DESKTOP_DEST}" ]]; then
-        rm -f "${DESKTOP_DEST}"
-        ok "Desktop launcher removed."
-    fi
-
-    if [[ -f "${APPLICATIONS_DEST}" ]]; then
-        rm -f "${APPLICATIONS_DEST}"
-        ok "Applications launcher removed."
-    fi
-
-    if [[ -f "${APP_SCRIPT_DEST}" ]]; then
-        rm -f "${APP_SCRIPT_DEST}"
-        ok "Standalone app executable removed."
-    fi
-
     info "You may also want to run:"
     echo "   gsettings set org.cinnamon next-applet-id 0"
     echo "   (Cinnamon will remove it from the panel on next login)"
@@ -53,7 +33,7 @@ fi
 
 if [[ ! -d "${APPLET_SRC}" ]]; then
     err "Applet source directory not found: ${APPLET_SRC}"
-    err "Please run this script from the root of the repository."
+    err "Please run this script from inside the mint-power-enhancer@applet folder."
     exit 1
 fi
 
@@ -78,41 +58,6 @@ mkdir -p "${APPLET_DEST}"
 cp -r "${APPLET_SRC}/." "${APPLET_DEST}/"
 ok "Files copied."
 
-# ── Desktop launcher ──────────────────────────────────────────────────────────
-
-info "Installing standalone app executable …"
-if [[ -f "${APP_SCRIPT_SRC}" ]]; then
-    mkdir -p "$(dirname "${APP_SCRIPT_DEST}")"
-    cp "${APP_SCRIPT_SRC}" "${APP_SCRIPT_DEST}"
-    chmod +x "${APP_SCRIPT_DEST}"
-    ok "Standalone app installed at ${APP_SCRIPT_DEST}."
-else
-    warn "mint-power-enhancer-app.py not found in repository – skipping standalone app executable."
-fi
-
-info "Installing desktop launchers …"
-
-if [[ -f "${DESKTOP_SRC}" ]]; then
-    mkdir -p "$(dirname "${APPLICATIONS_DEST}")"
-
-    # Use an absolute Exec path so launch works even if ~/.local/bin is not in GUI PATH.
-    sed "s|^Exec=.*|Exec=${APP_SCRIPT_DEST}|" "${DESKTOP_SRC}" > "${APPLICATIONS_DEST}"
-
-    mkdir -p "$(dirname "${DESKTOP_DEST}")"
-    sed "s|^Exec=.*|Exec=${APP_SCRIPT_DEST}|" "${DESKTOP_SRC}" > "${DESKTOP_DEST}"
-    chmod +x "${DESKTOP_DEST}"
-
-    # Mark as trusted so Cinnamon/Nemo allows double-click execution
-    if command -v gio &>/dev/null; then
-        gio set "${DESKTOP_DEST}" metadata::trusted true 2>/dev/null || \
-            warn "Could not mark desktop launcher as trusted. You may need to right-click it and choose 'Allow Launching'."
-    fi
-    ok "Desktop launcher created at ${DESKTOP_DEST}."
-    ok "Applications launcher created at ${APPLICATIONS_DEST}."
-else
-    warn "mint-power-enhancer.desktop not found in repository – skipping desktop launcher."
-fi
-
 # ── Enable via gsettings ──────────────────────────────────────────────────────
 
 if command -v gsettings &>/dev/null && \
@@ -120,19 +65,19 @@ if command -v gsettings &>/dev/null && \
 
     info "Enabling applet in Cinnamon panel …"
 
-    # Read current enabled-applets list
+    # Read current enabled-applets list.
     CURRENT=$(gsettings get org.cinnamon enabled-applets 2>/dev/null || echo "[]")
 
-    # Check if already present
+    # Check if already present before appending a duplicate.
     if echo "${CURRENT}" | grep -q "${APPLET_UUID}"; then
         ok "Applet is already in the enabled list – skipping gsettings update."
     else
-        # Append new entry: "panel1:right:0:<uuid>:<instance-id>"
+        # Append new entry: "panel1:right:0:<uuid>:<instance-id>".
         NEW_ENTRY="'panel1:right:0:${APPLET_UUID}:0'"
 
-        # Strip trailing ] and append
+        # Strip trailing ] and append.
         UPDATED="${CURRENT%]}, ${NEW_ENTRY}]"
-        # Handle empty list edge case
+        # Handle empty list edge case.
         UPDATED="${UPDATED/\[\], /[}"
 
         gsettings set org.cinnamon enabled-applets "${UPDATED}" && \
@@ -157,7 +102,7 @@ fi
 # ── Done ──────────────────────────────────────────────────────────────────────
 
 echo ""
-ok "Installation complete!"
+ok "Applet installation complete!"
 echo ""
 echo "If the applet does not appear on the panel automatically:"
 echo "  1. Right-click the Cinnamon panel"
@@ -165,4 +110,4 @@ echo "  2. Choose 'Add applets to the panel'"
 echo "  3. Search for 'Mint Power Enhancer'"
 echo "  4. Click the '+' button to add it"
 echo ""
-echo "To uninstall later, run:  bash install.sh --uninstall"
+echo "To uninstall later, run:  bash mint-power-enhancer@applet/install.sh --uninstall"

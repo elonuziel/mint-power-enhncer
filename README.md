@@ -35,6 +35,13 @@ A [Cinnamon](https://github.com/linuxmint/Cinnamon) panel applet for Linux Mint 
 
 ## Step-by-step Installation
 
+### Repository layout and installs
+
+- [mint-power-enhancer@applet/](mint-power-enhancer@applet) contains the Cinnamon panel applet.
+- [standalone-app/](standalone-app) contains the separate GTK desktop app and launcher.
+- [mint-power-enhancer@applet/install.sh](mint-power-enhancer@applet/install.sh) installs only the panel applet.
+- [standalone-app/install.sh](standalone-app/install.sh) installs only the standalone desktop app.
+
 ### Step 1 — Download the repository
 
 Open a terminal (`Ctrl + Alt + T`) and run:
@@ -68,23 +75,33 @@ If the service is not active, start and enable it:
 sudo systemctl enable --now power-profiles-daemon
 ```
 
-### Step 3 — Run the installer
+### Step 3 — Run the installer for the piece you want
 
-From inside the cloned repository directory:
+To install only the panel applet:
 
 ```bash
-bash install.sh
+bash mint-power-enhancer@applet/install.sh
 ```
 
-The script will:
+To install only the standalone desktop app:
+
+```bash
+bash standalone-app/install.sh
+```
+
+The applet installer will:
 
 1. Copy the applet files to `~/.local/share/cinnamon/applets/mint-power-enhancer@applet/`
-2. Install the standalone app executable at `~/.local/bin/mint-power-enhancer-app`
-3. Place launchers in:
+2. Add the applet to your Cinnamon panel via `gsettings`
+3. Reload Cinnamon automatically
+
+The standalone app installer will:
+
+1. Copy the app executable to `~/.local/bin/mint-power-enhancer-app`
+2. Place launchers in:
    - `~/.local/share/applications/mint-power-enhancer.desktop`
    - `~/Desktop/mint-power-enhancer.desktop`
-4. Add the applet to your Cinnamon panel via `gsettings`
-5. Reload Cinnamon automatically
+3. Mark the Desktop launcher as trusted when Cinnamon/Nemo allows it
 
 ### Step 4 — Add the applet to the panel (if not added automatically)
 
@@ -179,8 +196,16 @@ Because Cinnamon applets are loaded automatically at login (they are part of the
 
 ## Uninstall
 
+Applet uninstall:
+
 ```bash
-bash install.sh --uninstall
+bash mint-power-enhancer@applet/install.sh --uninstall
+```
+
+Standalone app uninstall:
+
+```bash
+bash standalone-app/install.sh --uninstall
 ```
 
 Then remove it from the panel:
@@ -227,7 +252,7 @@ ls ~/.local/share/cinnamon/applets/mint-power-enhancer@applet/
 # Expected: applet.js  metadata.json  settings-schema.json  stylesheet.css
 ```
 
-If missing, re-run `bash install.sh` from the repository root.
+If missing, re-run the relevant installer from the matching folder.
 
 ---
 

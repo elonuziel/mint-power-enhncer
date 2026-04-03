@@ -36,6 +36,7 @@ DEFAULT_CONFIG = {
 
 
 def read_sysfs(path: str):
+    """Read a single sysfs file and return the trimmed text value."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             return f.read().strip()
@@ -44,6 +45,7 @@ def read_sysfs(path: str):
 
 
 def find_power_supply_path(power_type: str):
+    """Find the first power_supply entry of the requested type."""
     base = "/sys/class/power_supply"
     try:
         for name in os.listdir(base):
@@ -56,7 +58,17 @@ def find_power_supply_path(power_type: str):
     return None
 
 
+def shutil_which(name: str):
+    """Check whether a command exists on PATH without raising exceptions."""
+    result = subprocess.run([
+        "which",
+        name,
+    ], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return result.returncode == 0
+
+
 def apply_profile(profile: str):
+    """Apply a power profile, preferring powerprofilesctl and falling back to sysfs."""
     if shutil_which("powerprofilesctl"):
         result = subprocess.run(
             ["powerprofilesctl", "set", profile],
@@ -67,6 +79,7 @@ def apply_profile(profile: str):
         if result.returncode == 0:
             return True
 
+    # When powerprofilesctl is unavailable, write the CPU governor directly.
     governor = "schedutil"
     if profile == "power-saver":
         governor = "powersave"
@@ -86,11 +99,6 @@ def apply_profile(profile: str):
             pass
 
     return wrote_any
-
-
-def shutil_which(name: str):
-    result = subprocess.run(["which", name], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    return result.returncode == 0
 
 
 def profile_label(profile: str):
@@ -124,10 +132,12 @@ class MintPowerEnhancerApp(Gtk.Window):
         self._bind_events()
         self._setup_file_monitors()
 
+        # Prime the UI immediately, then keep it fresh on a timer and file events.
         self._tick()
         GLib.timeout_add_seconds(CHECK_INTERVAL_SECONDS, self._on_interval)
 
     def _load_config(self):
+        """Load user settings or create a new config file with defaults."""
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
         if not CONFIG_PATH.exists():
             self._save_config(DEFAULT_CONFIG.copy())
@@ -143,6 +153,7 @@ class MintPowerEnhancerApp(Gtk.Window):
             return DEFAULT_CONFIG.copy()
 
     def _save_config(self, data=None):
+        """Persist the current config to disk in a simple JSON file."""
         if data is None:
             data = self.config
         CONFIG_DIR.mkdir(parents=True, exist_ok=True)
@@ -150,6 +161,7 @@ class MintPowerEnhancerApp(Gtk.Window):
             json.dump(data, f, indent=2)
 
     def _build_ui(self):
+        """Create the window layout and all interactive controls."""
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         self.add(root)
 
@@ -212,6 +224,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         root.pack_end(actions, False, False, 0)
 
     def _row_with_switch(self, text, switch):
+        """Keep label/switch alignment consistent across all option rows."""
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         label = Gtk.Label(label=text)
         label.set_xalign(0)
@@ -220,6 +233,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         return row
 
     def _bind_events(self):
+        """Hook UI signals to config writes and live power updates."""
         self.connect("destroy", self._on_destroy)
 
         self.switch_manual.connect("notify::active", self._on_controls_changed)
@@ -229,6 +243,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         self.threshold_spin.connect("value-changed", self._on_controls_changed)
 
     def _setup_file_monitors(self):
+        """Watch sysfs files so AC plug/unplug changes show up quickly."""
         paths = []
         if self._ac_path:
             paths.append(os.path.join(self._ac_path, "online"))
@@ -249,6 +264,7 @@ class MintPowerEnhancerApp(Gtk.Window):
                 pass
 
     def _schedule_refresh(self):
+        """Debounce bursts of file-change events into a single UI refresh."""
         if self._pending_refresh_id:
             return
 
@@ -260,6 +276,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         self._pending_refresh_id = GLib.timeout_add(FAST_REFRESH_DELAY_MS, _refresh)
 
     def _notify(self, message):
+        """Send a desktop notification only when notifications are enabled."""
         if not self.config["show_notifications"]:
             return
 
@@ -272,6 +289,7 @@ class MintPowerEnhancerApp(Gtk.Window):
             )
 
     def _on_controls_changed(self, *_args):
+        """Persist controls immediately and re-evaluate the active power profile."""
         self.config["manual_battery_saver"] = bool(self.switch_manual.get_active())
         self.config["performance_mode_on_ac"] = bool(self.switch_perf.get_active())
         self.config["auto_battery_saver_enabled"] = bool(self.switch_auto.get_active())
@@ -296,6 +314,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         return read_sysfs(os.path.join(self._battery_path, "status")) or "Unknown"
 
     def _read_on_ac(self, status):
+        """Prefer AC online state, but fall back to battery status when needed."""
         if self._ac_path:
             online = read_sysfs(os.path.join(self._ac_path, "online"))
             if online is not None:
@@ -303,6 +322,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         return status in ("Charging", "Full")
 
     def _apply_policy(self, force_apply=False):
+        """Derive the target profile from current settings and live power state."""
         want_saver = bool(self.config["manual_battery_saver"])
 
         if (
@@ -336,6 +356,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         self.switch_perf.set_sensitive(self._on_ac)
 
     def _refresh_labels(self):
+        """Update the window text with the latest live status values."""
         if self._battery_level < 0:
             self.status_label.set_text("Battery: not detected")
         else:
@@ -345,6 +366,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         self.mode_label.set_text(f"Mode: {profile_label(self._current_profile)}")
 
     def _tick(self):
+        """Refresh live state, apply policy, and redraw the UI."""
         self._battery_level = self._read_battery_level()
         self._battery_state = self._battery_status()
         self._on_ac = self._read_on_ac(self._battery_state)
@@ -359,6 +381,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         self._tick()
 
     def _open_cinnamon_settings(self, *_args):
+        """Open the Cinnamon applet settings view for deeper configuration."""
         cmd = ["xlet-settings", "applet", "mint-power-enhancer@applet", "-i", "0"]
         fallback = ["cinnamon-settings", "applets"]
 
@@ -366,6 +389,7 @@ class MintPowerEnhancerApp(Gtk.Window):
         subprocess.Popen(run, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     def _on_destroy(self, *_args):
+        """Clean up file monitors and timers before closing the window."""
         if self._pending_refresh_id:
             GLib.source_remove(self._pending_refresh_id)
             self._pending_refresh_id = 0
