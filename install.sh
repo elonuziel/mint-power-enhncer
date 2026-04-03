@@ -7,6 +7,12 @@ set -euo pipefail
 APPLET_UUID="mint-power-enhancer@applet"
 APPLET_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/${APPLET_UUID}"
 APPLET_DEST="${HOME}/.local/share/cinnamon/applets/${APPLET_UUID}"
+APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_SCRIPT_SRC="${APP_DIR}/mint-power-enhancer-app.py"
+APP_SCRIPT_DEST="${HOME}/.local/bin/mint-power-enhancer-app"
+DESKTOP_SRC="${APP_DIR}/mint-power-enhancer.desktop"
+DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
+APPLICATIONS_DEST="${HOME}/.local/share/applications/mint-power-enhancer.desktop"
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,10 +28,19 @@ if [[ "${1:-}" == "--uninstall" ]]; then
     rm -rf "${APPLET_DEST}"
     ok "Applet removed."
 
-    DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
     if [[ -f "${DESKTOP_DEST}" ]]; then
         rm -f "${DESKTOP_DEST}"
         ok "Desktop launcher removed."
+    fi
+
+    if [[ -f "${APPLICATIONS_DEST}" ]]; then
+        rm -f "${APPLICATIONS_DEST}"
+        ok "Applications launcher removed."
+    fi
+
+    if [[ -f "${APP_SCRIPT_DEST}" ]]; then
+        rm -f "${APP_SCRIPT_DEST}"
+        ok "Standalone app executable removed."
     fi
 
     info "You may also want to run:"
@@ -65,18 +80,35 @@ ok "Files copied."
 
 # ── Desktop launcher ──────────────────────────────────────────────────────────
 
-DESKTOP_SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/mint-power-enhancer.desktop"
-DESKTOP_DEST="${HOME}/Desktop/mint-power-enhancer.desktop"
+info "Installing standalone app executable …"
+if [[ -f "${APP_SCRIPT_SRC}" ]]; then
+    mkdir -p "$(dirname "${APP_SCRIPT_DEST}")"
+    cp "${APP_SCRIPT_SRC}" "${APP_SCRIPT_DEST}"
+    chmod +x "${APP_SCRIPT_DEST}"
+    ok "Standalone app installed at ${APP_SCRIPT_DEST}."
+else
+    warn "mint-power-enhancer-app.py not found in repository – skipping standalone app executable."
+fi
+
+info "Installing desktop launchers …"
 
 if [[ -f "${DESKTOP_SRC}" ]]; then
-    cp "${DESKTOP_SRC}" "${DESKTOP_DEST}"
+    mkdir -p "$(dirname "${APPLICATIONS_DEST}")"
+
+    # Use an absolute Exec path so launch works even if ~/.local/bin is not in GUI PATH.
+    sed "s|^Exec=.*|Exec=${APP_SCRIPT_DEST}|" "${DESKTOP_SRC}" > "${APPLICATIONS_DEST}"
+
+    mkdir -p "$(dirname "${DESKTOP_DEST}")"
+    sed "s|^Exec=.*|Exec=${APP_SCRIPT_DEST}|" "${DESKTOP_SRC}" > "${DESKTOP_DEST}"
     chmod +x "${DESKTOP_DEST}"
+
     # Mark as trusted so Cinnamon/Nemo allows double-click execution
     if command -v gio &>/dev/null; then
         gio set "${DESKTOP_DEST}" metadata::trusted true 2>/dev/null || \
             warn "Could not mark desktop launcher as trusted. You may need to right-click it and choose 'Allow Launching'."
     fi
     ok "Desktop launcher created at ${DESKTOP_DEST}."
+    ok "Applications launcher created at ${APPLICATIONS_DEST}."
 else
     warn "mint-power-enhancer.desktop not found in repository – skipping desktop launcher."
 fi

@@ -15,7 +15,8 @@ A [Cinnamon](https://github.com/linuxmint/Cinnamon) panel applet for Linux Mint 
 | **Live panel indicator** | Shows current battery percentage and a context-aware icon in the taskbar |
 | **Desktop notifications** | Optional pop-up alerts when the power mode changes automatically |
 | **Persistent settings** | All settings survive reboots — stored by Cinnamon's built-in settings system |
-| **Desktop launcher** | A `.desktop` shortcut is placed on your Desktop during installation for one-double-click access to settings |
+| **Standalone app** | A dedicated desktop app window is installed so you can manage power modes without opening the panel applet |
+| **Desktop launcher** | A `.desktop` shortcut is placed on your Desktop during installation for one-double-click access to the standalone app |
 
 ---
 
@@ -25,6 +26,7 @@ A [Cinnamon](https://github.com/linuxmint/Cinnamon) panel applet for Linux Mint 
 |---|---|
 | Linux Mint | 20, 21, or 22 (any edition) |
 | Cinnamon | 4.0 or later |
+| `python3-gi` | Required for the standalone GTK app (`sudo apt install python3-gi gir1.2-gtk-3.0`) |
 | `power-profiles-daemon` | *Recommended* — enables clean profile switching without root. Install with `sudo apt install power-profiles-daemon` |
 
 > **Without `power-profiles-daemon`**: the applet falls back to writing the CPU scaling governor directly via `/sys`. This may require write permissions to sysfs and does not control other power consumers (e.g. disk, Wi-Fi). Installing the daemon is strongly recommended.
@@ -77,9 +79,12 @@ bash install.sh
 The script will:
 
 1. Copy the applet files to `~/.local/share/cinnamon/applets/mint-power-enhancer@applet/`
-2. Place a **desktop launcher** (`mint-power-enhancer.desktop`) on your Desktop for one-double-click access to settings
-3. Add the applet to your Cinnamon panel via `gsettings`
-4. Reload Cinnamon automatically
+2. Install the standalone app executable at `~/.local/bin/mint-power-enhancer-app`
+3. Place launchers in:
+   - `~/.local/share/applications/mint-power-enhancer.desktop`
+   - `~/Desktop/mint-power-enhancer.desktop`
+4. Add the applet to your Cinnamon panel via `gsettings`
+5. Reload Cinnamon automatically
 
 ### Step 4 — Add the applet to the panel (if not added automatically)
 
@@ -108,6 +113,17 @@ All changes take effect immediately and persist across reboots.
 ---
 
 ## Usage
+
+### Standalone app (double-click)
+
+- Double-click **mint-power-enhancer.desktop** on your Desktop, or launch **Mint Power Enhancer** from the app menu.
+- The standalone app shows live battery/power status and lets you control:
+   - Battery Saver
+   - Performance Mode (AC only)
+   - Auto Battery Saver
+   - Notifications
+   - Auto-saver threshold
+- It also includes an **Open Cinnamon Applet Settings** button when you need full applet configuration.
 
 ### Panel icon
 
