@@ -1,0 +1,68 @@
+{
+    "layout": {
+        "type": "layout",
+        "pages": ["battery-page", "performance-page"],
+        "battery-page": {
+            "type": "page",
+            "title": "Battery Saver",
+            "sections": ["auto-saver-section", "manual-section"]
+        },
+        "performance-page": {
+            "type": "page",
+            "title": "Performance",
+            "sections": ["performance-section"]
+        },
+        "auto-saver-section": {
+            "type": "section",
+            "title": "Automatic Battery Saver",
+            "keys": [
+                "auto-battery-saver-enabled",
+                "battery-saver-threshold",
+                "show-notifications"
+            ]
+        },
+        "manual-section": {
+            "type": "section",
+            "title": "Manual Override",
+            "keys": [
+                "manual-battery-saver"
+            ]
+        },
+        "performance-section": {
+            "type": "section",
+            "title": "Performance Mode",
+            "keys": [
+                "performance-mode-on-ac"
+            ]
+        }
+    },
+    "auto-battery-saver-enabled": {
+        "type": "checkbox",
+        "default": true,
+        "description": "Automatically enable battery saver when battery drops below threshold"
+    },
+    "battery-saver-threshold": {
+        "type": "spinbutton",
+        "default": 20,
+        "min": 5,
+        "max": 95,
+        "step": 5,
+        "units": "%",
+        "description": "Activate battery saver when battery falls below this percentage"
+    },
+    "show-notifications": {
+        "type": "checkbox",
+        "default": true,
+        "description": "Show notifications when power mode changes automatically"
+    },
+    "manual-battery-saver": {
+        "type": "checkbox",
+        "default": false,
+        "description": "Manually force battery saver mode on"
+    },
+    "performance-mode-on-ac": {
+        "type": "checkbox",
+        "default": false,
+        "description": "Enable performance mode automatically when connected to AC power"
+    }
+}

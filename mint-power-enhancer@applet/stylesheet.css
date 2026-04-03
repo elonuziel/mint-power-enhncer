@@ -1,0 +1,16 @@
+/* Mint Power Enhancer – stylesheet.css
+ *
+ * Cinnamon applets inherit the theme's colours by default.
+ * These rules provide only minor tweaks so the applet blends
+ * in on both light and dark panel themes.
+ */
+
+/* Panel label next to the battery icon */
+.applet-label {
+    padding: 0 2px;
+}
+
+/* Dim the performance-mode toggle row when not on AC */
+.popup-menu-item:insensitive {
+    opacity: 0.5;
+}
